@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -euo pipefail
+
+trap 'echo "
+##########################################################
+# Test failed!
+##########################################################" 1>&2' EXIT
+
+TESTDIR=$(dirname $0)
+BUILDDIR=${BUILDDIR:-$(dirname $0)/../build}
+
+export PATH=${BUILDDIR}:$PATH
+
+echo "****************************************************"
+echo "* Testing basic wrapper functionality..."
+echo "****************************************************"
+$TESTDIR/test-basic-wrapper/run-all-tests
+
+trap - EXIT
+echo "****************************************************"
+echo "* All tests passed!"
+echo "****************************************************"
