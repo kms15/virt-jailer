@@ -7,15 +7,20 @@ trap 'echo "
 # Test failed!
 ##########################################################" 1>&2' EXIT
 
-TESTDIR=$(dirname $0)
-BUILDDIR=${BUILDDIR:-$(dirname $0)/../build}
+TESTDIR=$(readlink -f $(dirname $0))
+BUILDDIR=$(readlink -f ${BUILDDIR:-$(dirname $0)/../build})
 
-export PATH=${BUILDDIR}:$PATH
+export PATH=${BUILDDIR}:${BUILDDIR}/test:$PATH
 
 echo "****************************************************"
 echo "* Testing basic wrapper functionality..."
 echo "****************************************************"
 $TESTDIR/test-basic-wrapper/run-all-tests
+
+echo "****************************************************"
+echo "* Testing namespace sandboxing..."
+echo "****************************************************"
+$TESTDIR/test-namespaces/run-all-tests
 
 trap - EXIT
 echo "****************************************************"

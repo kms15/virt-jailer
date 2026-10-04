@@ -11,13 +11,13 @@ for use.
 
 Virtual machine emulators such as [QEMU](https://www.qemu.org/) by default
 often favor compatibility and usability over security. It is very easy to get
-anything that will run on a typical PC, from an old MS DOS game to Windows 95
-to a modern BSD server OS running under QEMU, and for many use cases this is a
-good thing. In some cases, however, you want to run either an untrusted
-workload (e.g. one provided by an untrusted tenant) or a service exposed to the
-internet, and you want to make sure that untrusted access within the virtual
-machine can't easy be turned into untrusted access to the host machine. In this
-case, [the QEMU defaults may not stop a modern attacker](
+almost anything that will run on a typical PC running on QEMU, from an old MS
+DOS game to Windows 95 to a modern BSD server OS, and for many use cases this
+set of priorities is a good thing. In some cases, however, you want to run
+either an untrusted workload (e.g. one provided by an untrusted tenant) or a
+service exposed to the internet, and you want to make sure that a compromise
+within the virtual machine can't easy be turned into a compromise of the host
+machine. In this case, [the QEMU defaults may not stop a modern attacker](
 https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/)
 from easily escaping from the guest to the host machine.
 
@@ -27,8 +27,8 @@ https://www.qemu.org/docs/master/system/security.html?utm_source=chatgpt.com
 recommendations fall into two categories: 1) expose only the functionality
 (in terms of devices) that the guest needs, and 2) run the qemu process inside
 of a sandbox so that an escape from the VM into the qemu process on the host
-is difficult to turn into a compromise of anything beyond the sandbox qemu
-is running within. Some of the key sandboxing technologies it recommends are
+is still difficult to turn into a compromise of anything outside of the
+sandbox. Some of the key sandboxing technologies it recommends are
 SELinux/App Armor, resource limits and c-groups, Linux namespaces, and Linux
 seccomp. While QEMU does provide flags to disable unneeded devices (see for
 example the [microvm machine type](
@@ -54,34 +54,27 @@ virtual machine emulator without trying to provide all of the features of a
 full hypervisor stack.  While QEMU is the only emulator currently supported,
 other emulators like Firecracker and CloudHypervisor may be supported in the
 future (as the sandboxing requirements are nearly identical).  Unlike QEMU
-itself, it favors security over usability by default, so you will likely need
-to turn on features you need rather than have a bunch of features you might
-have needed (each with their own security risks) turned on by default. It also
-only aims to support a subset of QEMU's functionality, so many features like
-live-migration and TFTP servers may never be supported.  If you just need a
-simple and secure sandbox to run a virtual machine emulator in, however, some
-of the tools in this repository may be useful.
+itself, this utility favors security over usability by default, so you will
+likely need to turn on features you need but are less likely to be surprised
+by an vulnerability in a feature you were not using. It also only aims to
+support a subset of QEMU's functionality, so many features like live-migration,
+PCIe device hot plugging, and attaching new disks to a running machine may
+never be supported.  If you just need a simple and secure sandbox to run a
+virtual machine emulator in, however, some of the tools in this repository may
+be useful.
 
 ## Utilities provided by this repository:
 
   - `virt-jailer-core`: This is a low-level wrapper for QEMU (or other
     emulators) in the form of a small C utility with minimal dependencies
     that performs the core security work of building the security sandbox and
-    lauching QEMU within it. This includes mapping unix sockets and TAP devices
-    to file descriptors, creating and pivoting into a hardened root file
-    system, creating and switching into isolated network, PID, cgroup, and
+    lauching QEMU within it. This includes mapping files, unix sockets and TAP
+    devices to file descriptors, creating and pivoting into a hardened root
+    file system, creating and switching into isolated network, PID, cgroup, and
     IPC namespaces, setting up a minimal set of environment variables,
     optionally applying a provided AppArmor profile, and dropping privileges to
     the minimum set required by qemu. In the git parlance of "plumbing" and
     "porcelain" commands, this is a "plumbing" command designed to to be called
-    by other scripts that intentionally favors simplicity over attempts to
-    provide a user-friendly interface. It is intended to be run as an
-    unprivileged user.
-
-  - `virt-jailer-apparmor-wrapper`: This is a wrapper script designed to be
-    run as root, which creates and loads an AppArmor profile for an individual
-    virtual machine before switching to the given unprivileged user and group
-    and running the next command. The new AppArmor profile can then be used
-    by `virt-jailer-core` to provide additional defense in depth against
-    escapes from the virtual machine emulator.
-
+    by other scripts that intentionally favors implementation simplicity over
+    attempts to provide a user-friendly interface; for example . It is intended to be run as
+    an unprivileged user.
