@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include <assert.h>
 #include <errno.h>
 #include <linux/nsfs.h>
 #include <stdio.h>
@@ -42,6 +41,10 @@ int main(int argc, char* argv[], char* envp[]) {
     };
     const int num_namespaces = sizeof(namespaces) / sizeof(namespaces[0]);
 
+    // print the header
+
+    printf("%-10s  %-9s  %-10s  %-11s  %-13s\n", "namespace", "device id", "inode", "user ns dev", "user ns inode");
+
     for (int i=0; i < num_namespaces; i++) {
 
         // get the file descriptor for the namespace
@@ -65,8 +68,9 @@ int main(int argc, char* argv[], char* envp[]) {
         }
 
         // print the results so far for the namespace
-        printf("%s namespace: device [%x,%x], inode %jx ", namespaces[i].name,
-                major(namespace_st.st_dev), minor(namespace_st.st_dev),
+        printf( "%-10s  %-9ju  %-10ju",
+                namespaces[i].name,
+                namespace_st.st_dev,
                 (uintmax_t) namespace_st.st_ino);
 
         // If this is not a user namespace, get the owning user namespace
@@ -76,11 +80,11 @@ int main(int argc, char* argv[], char* envp[]) {
             int owner_namespace_fd = ioctl(namespace_fd, NS_GET_USERNS);
             if (owner_namespace_fd == -1) {
                 if (errno == EPERM) {
-                    puts("(not authorized to access owning user namespace)");
+                    printf("  %-11s  %-13s\n", "DENIED", "DENIED");
                     continue;
                 }
 
-                puts("");
+                printf("\n");
                 fprintf(stderr,
                     "Error getting file descriptor for the user namespace that "
                         "owns namespace %s: %s\n",
@@ -92,7 +96,7 @@ int main(int argc, char* argv[], char* envp[]) {
 
             struct stat owner_namespace_st;
             if (fstat(owner_namespace_fd, &owner_namespace_st) == -1) {
-                puts("");
+                printf("\n");
                 fprintf(stderr,
                     "Error getting file status for the user namespace that "
                         "owns namespace %s: %s\n",
@@ -100,12 +104,14 @@ int main(int argc, char* argv[], char* envp[]) {
                 exit(1);
             }
 
-            printf("(owned by user namespace [%x,%x], %jx)\n",
-                    major(owner_namespace_st.st_dev), minor(owner_namespace_st.st_dev),
-                    (uintmax_t) owner_namespace_st.st_ino
+            printf("  %-11ju  %-13ju\n",
+                   owner_namespace_st.st_dev,
+                   (uintmax_t) owner_namespace_st.st_ino
                   );
         } else {
-            puts("");
+            printf( "  %-11jx  %-13ju\n",
+                    namespace_st.st_dev,
+                    (uintmax_t) namespace_st.st_ino);
         }
     }
 }
