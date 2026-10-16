@@ -9,14 +9,10 @@
 int main(int argc, char* argv[], char* envp[]) {
     // Unshare the user namespace (required to unshare many of the other
     // namespaces)
-    if (unshare(CLONE_NEWUSER) == -1) {
-        perror("Failed to unshare user namespace");
-        exit(1);
-    }
-
-    // Unshare the PID namespaces
-    if (unshare(CLONE_NEWPID) == -1) {
-        perror("Failed to unshare PID namespace");
+    if (unshare(CLONE_NEWUSER | CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWNS |
+                CLONE_NEWNET | CLONE_NEWPID | CLONE_NEWTIME | CLONE_NEWUTS)
+            == -1) {
+        perror("Failed to unshare namespaces");
         exit(1);
     }
 

@@ -2,5 +2,45 @@
 
 set -xeuo pipefail
 
+SCRATCH=$(mktemp -d)
+trap "rm -rf \"$SCRATCH\"" EXIT
+
+get-namespace-ids > $SCRATCH/outside-namespace-ids
+virt-jailer-core -- $(which get-namespace-ids) > $SCRATCH/inside-namespace-ids
+
+# the wrapped binary should be in an entirely new set of namespaces
+for NAMESPACE in user cgroup IPC mount net PID time UTS; do
+    OUTSIDE_NAMESPACE_ID=$(cat $SCRATCH/outside-namespace-ids \
+        | grep "^$NAMESPACE\b" \
+        | sed 's/ \+/:/g' \
+        | cut -d: -f 2-3)
+    INSIDE_NAMESPACE_ID=$(cat $SCRATCH/inside-namespace-ids \
+        | grep "^$NAMESPACE\b" \
+        | sed 's/ \+/:/g' \
+        | cut -d: -f 2-3)
+    if [[ "$OUTSIDE_NAMESPACE_ID" == "$INSIDE_NAMESPACE_ID" ]]; then
+        diff $SCRATCH/outside-namespace-ids $SCRATCH/inside-namespace-ids
+        echo "$NAMESPACE namespace not unshared!" 1>&2
+        exit 1
+    fi
+done
+
+# the new set of namespaces should all be owned by the new user namespace
+USER_NAMESPACE_ID=$(cat $SCRATCH/inside-namespace-ids \
+    | grep "^user\b" \
+    | sed 's/ \+/:/g' \
+    | cut -d: -f 2-3)
+for NAMESPACE in user cgroup IPC mount net PID time UTS; do
+    OWNING_NAMESPACE_ID=$(cat $SCRATCH/inside-namespace-ids \
+        | grep "^$NAMESPACE" \
+        | sed 's/ \+/:/g' \
+        | cut -d: -f 4-5)
+    if [[ "$OWNING_NAMESPACE_ID" != "$USER_NAMESPACE_ID" ]]; then
+        cat $SCRATCH/inside-namespace-ids
+        echo "$NAMESPACE namespace not owned by new user namespace!" 1>&2
+        exit 1
+    fi
+done
+
 # The wrapped binary should be in its own pid namespace as pid 1
 virt-jailer-core -- $(which test-i-am-pid-1)
