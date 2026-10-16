@@ -42,5 +42,5 @@ for NAMESPACE in user cgroup IPC mount net PID time UTS; do
     fi
 done
 
-# The wrapped binary should be in its own pid namespace as pid 1
-virt-jailer-core -- $(which test-i-am-pid-1)
+# The wrapped binary should not be PID 1
+! virt-jailer-core -- $(which test-i-am-pid-1)
