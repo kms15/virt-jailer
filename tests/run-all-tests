@@ -22,6 +22,11 @@ echo "* Testing namespace sandboxing..."
 echo "****************************************************"
 $TESTDIR/test-namespaces/run-all-tests
 
+echo "****************************************************"
+echo "* Testing file descriptor passing..."
+echo "****************************************************"
+$TESTDIR/test-fd-passing/run-all-tests
+
 trap - EXIT
 echo "****************************************************"
 echo "* All tests passed!"
