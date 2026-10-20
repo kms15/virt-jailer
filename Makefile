@@ -4,7 +4,7 @@ BUILD=./build
 SRC=./src
 
 CFLAGS=-fpie -fstack-protector-strong -O2 -D_FORTIFY_SOURCE=3 \
-	   -Wformat -Werror=format-security -Werror=format-extra-args
+	   -Wformat -Werror=format
 LDFLAGS=--pie -static -Wl,-z,relro,-z,now
 
 $(BUILD)/%.o: $(SRC)/%.c
