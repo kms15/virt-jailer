@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <linux/magic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,21 +12,76 @@
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
 
+#define MAX_FD_ARG "--max-fd="
+
+void usage(const char* prog_name, FILE* file) {
+    fprintf(file,
+        "Usage:\n"
+        "   %s [%s=NUMBER]\n"
+        "   %s --help\n",
+        prog_name, MAX_FD_ARG, prog_name
+        );
+}
 
 int main(int argc, char* argv[]) {
-    // get the maximum allowed file descriptor value
-    struct rlimit rlimit_nofile;
+    // parse the arguments
+    unsigned long max_fd = 0;
 
-    if (getrlimit(RLIMIT_NOFILE, &rlimit_nofile) != 0) {
-        perror("Error getting the maximum file descriptor value");
-        exit(1);
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            usage(argv[0], stdout);
+            exit(0);
+        } else if (strncmp(argv[i], MAX_FD_ARG, strlen(MAX_FD_ARG)) == 0) {
+            // try to parse the argument
+            char* nptr = argv[i] + strlen(MAX_FD_ARG);
+            char* endptr = nptr;
+            errno=0;
+            max_fd = strtoul(nptr, &endptr, 10);
+            if (errno != 0 || max_fd > INT_MAX || max_fd == 0
+                    || endptr[0] != 0) {
+                fprintf(stderr, "Invalid %s value \"%s\"\n", MAX_FD_ARG, nptr);
+                usage(argv[0], stderr);
+                exit(1);
+            }
+        } else {
+            fprintf(stderr, "Unrecognized argument \"%s\"\n", argv[i]);
+            usage(argv[0], stderr);
+            exit(1);
+        }
     }
 
-    printf("%-5s  %-16s  %-10s  %-10s  %-10s  %s\n",
-            "fd#", "type", "on-device", "filesystem", "inode", "flags");
+    // if max_fd is not set, use the process's soft limit on the maximum number
+    // of open files.
+    if (max_fd == 0) {
+        struct rlimit rlimit_nofile;
+
+        if (getrlimit(RLIMIT_NOFILE, &rlimit_nofile) != 0) {
+            perror("Error getting the maximum file descriptor value");
+            exit(1);
+        }
+
+        max_fd = (int)rlimit_nofile.rlim_cur;
+
+        // Some utilities (e.g. docker) default to a very large maximum number
+        // of files (e.g. 2**30), which can be slow to enumerate, so make the
+        // user specify the number of files to enumerate in this case.
+        if (max_fd > 1000000) {
+            fprintf(stderr,
+                "Error: the current process's soft limit on the maximum "
+                "number of files is very high (%lu), which may be slow to "
+                "enumerate. Please lower the soft limit (e.g. using "
+                "\"ulimit -S -n 1000\") or manually specify the maximum "
+                "number of files with the %s flag.\n",
+                max_fd, MAX_FD_ARG);
+            exit(1);
+        }
+    }
+
+    printf("%-5s  %-16s  %-16s  %-10s  %-10s  %-10s\n",
+            "fd#", "type", "flags", "filesystem", "on-device", "inode");
 
     // loop over each potential file descriptor
-    for (int fd = 0; fd < rlimit_nofile.rlim_max; ++fd) {
+    for (int fd = 0; fd < (int)max_fd; ++fd) {
         int fd_flags = fcntl(fd, F_GETFL);
 
         // get the flags for this file descriptor (or skip it if it's missing)
@@ -108,6 +164,10 @@ int main(int argc, char* argv[]) {
                 fd_type="fifo";
                 break;
 
+            case 0:
+                fd_type="0";
+                break;
+
             default:
                 assert(0); // unreached
                 fd_type="unknown";
@@ -132,6 +192,14 @@ int main(int argc, char* argv[]) {
                 mountfs = "btrfs";
                 break;
 
+            case CGROUP_SUPER_MAGIC:
+                mountfs = "cgroup";
+                break;
+
+            case CGROUP2_SUPER_MAGIC:
+                mountfs = "cgroup2";
+                break;
+
             case DEVPTS_SUPER_MAGIC:
                 mountfs = "devpts";
                 break;
@@ -141,11 +209,39 @@ int main(int argc, char* argv[]) {
                 break;
 
             case FUSE_SUPER_MAGIC:
-                mountfs = "ext2+";
+                mountfs = "fuse";
+                break;
+
+            case HUGETLBFS_MAGIC:
+                mountfs = "hugetblfs";
+                break;
+
+            case ISOFS_SUPER_MAGIC:
+                mountfs = "isofs";
+                break;
+
+            case OVERLAYFS_SUPER_MAGIC:
+                mountfs = "overlayfs";
                 break;
 
             case PIPEFS_MAGIC:
                 mountfs = "pipefs";
+                break;
+
+            case PROC_SUPER_MAGIC:
+                mountfs = "proc";
+                break;
+
+            case SOCKFS_MAGIC:
+                mountfs = "sockfs";
+                break;
+
+            case TMPFS_MAGIC:
+                mountfs = "tmpfs";
+                break;
+
+            case USBDEVICE_SUPER_MAGIC:
+                mountfs = "usbdev";
                 break;
 
             case XFS_SUPER_MAGIC:
@@ -274,13 +370,13 @@ int main(int argc, char* argv[]) {
             flags_str[FDFLAGS_BUF_SIZE - 1] = '.';
         }
 
-        printf("%-5d  %-16s  %-10s  %-10s  %-10llu  %-12s\n",
+        printf("%-5d  %-16s  %-16s  %-10s  %-10s  %-10llu\n",
                 fd,
                 fd_type,
-                device_id,
+                flags_str,
                 mountfs,
-                fd_statx.stx_ino,
-                flags_str
+                device_id,
+                fd_statx.stx_ino
                 );
     }
 }
