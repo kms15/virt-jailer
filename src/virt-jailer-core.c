@@ -7,6 +7,12 @@
 #include <unistd.h>
 
 int main(int argc, char* argv[], char* envp[]) {
+    // close any open file descriptors that might have leaked from the parent
+    if (close_range(3, ~0U, 0) == -1) {
+        perror("Failed to close any file descriptors from the parent process");
+        exit(1);
+    }
+
     // Unshare the user namespace (required to unshare many of the other
     // namespaces)
     if (unshare(CLONE_NEWUSER | CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWNS |

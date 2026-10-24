@@ -5,3 +5,40 @@ set -xeuo pipefail
 SCRATCH=$(mktemp -d)
 trap "rm -rf \"$SCRATCH\"" EXIT
 
+# Settting the --max-fd flag should limit the number of fd's tested
+[[ $(list-open-fds --max-fd=1 | wc -l) == $(( 1 + 1 )) ]];
+[[ $(list-open-fds --max-fd=2 | wc -l) == $(( 1 + 2 )) ]];
+[[ $(list-open-fds --max-fd=3 | wc -l) == $(( 1 + 3 )) ]];
+[[ $(list-open-fds --max-fd=4 | wc -l) == $(( 1 + 3 )) ]]; # no 4th fd
+
+# Normally should only have 3 files (stdin, stdout, stderr) open
+[[ $(list-open-fds | wc -l) == $(( 1 + 3 )) ]];
+[[ $(virt-jailer-core -- $(which list-open-fds) | wc -l) == $(( 1 + 3 )) ]];
+
+# Any additional file descriptors from the parent should be closed with
+# virt-jailer-core (and still open without it)
+(
+    exec 123</dev/null;
+    [[ $(list-open-fds | wc -l) == $(( 1 + 3 + 1)) ]];
+)
+(
+    exec 123</dev/null;
+    [[ $(virt-jailer-core -- $(which list-open-fds) | wc -l) == $(( 1 + 3 )) ]];
+)
+
+# Even file descriptors above the current limit should be closed.
+(
+    ulimit -S -n 2048
+    exec 1234</dev/null;
+    ulimit -S -n 1024
+    ulimit -H -n 1024
+    [[ $(list-open-fds --max-fd=2048 | wc -l) == $(( 1 + 3 + 1)) ]];
+)
+(
+    ulimit -S -n 2048
+    exec 1234</dev/null;
+    ulimit -S -n 1024
+    ulimit -H -n 1024
+    [[ $(virt-jailer-core -- $(which list-open-fds) --max-fd=2048 | wc -l) == $(( 1 + 3 )) ]];
+)
+
